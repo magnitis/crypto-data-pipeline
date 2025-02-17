@@ -1,0 +1,92 @@
+---
+x-logging: &logging
+  logging:
+    options:
+      max-size: "100m"
+      max-file: "5"
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'False'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
+    AIRFLOW__CORE__ENABLE_XCOM_PICKLING: 'True'
+    AIRFLOW__WEBSERVER__DAG_DEFAULT_VIEW: graph
+    AIRFLOW__WEBSERVER__WEB_SERVER_PORT: ${AIRFLOW_WEBSERVER_PORT}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./:/opt/airflow/
+    - airflow_logs:/opt/airflow/logs
+  depends_on: &airflow-common-depends-on
+    postgres:
+      condition: service_healthy
+
+services:
+  postgres:
+    <<: *logging
+    image: postgres:13
+    container_name: airflow_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB}", "-U", "${POSTGRES_USER}"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  airflow-webserver:
+    <<: [ *logging, *airflow-common ]
+    container_name: airflow_webserver
+    command: webserver
+    ports:
+      - ${AIRFLOW_WEBSERVER_PORT:-8080}:${AIRFLOW_WEBSERVER_PORT:-8080}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "-k", "http://localhost:${AIRFLOW_WEBSERVER_PORT:-8080}/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: [ *logging, *airflow-common ]
+    container_name: airflow_scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: [ *logging, *airflow-common ]
+    command: version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_UPGRADE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${AIRFLOW_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${AIRFLOW_PASS:-airflow}
+      _AIRFLOW_WWW_USER_EMAIL: ${AIRFLOW_USER_EMAIL:-airflowadmin@example.com}
+
+volumes:
+  postgres-db-volume:
+  airflow_logs:

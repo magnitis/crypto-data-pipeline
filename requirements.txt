@@ -1,0 +1,6 @@
+pandas==2.1.4
+requests==2.31.0
+websocket-client==1.7.0
+SQLAlchemy
+scipy==1.11.4
+psycopg2-binary
