@@ -66,8 +66,8 @@ Command-line Arguments:
 The pipeline can be deployed using [Apache Airflow](https://airflow.apache.org/docs/apache-airflow/2.6.0/) for scheduled execution. NOTE: The following steps assume [Docker](https://docs.docker.com/engine/install/ubuntu/) is installed.
 
 1. Configure Environment:
-   - Add or replace necessary environment variables in the .env file.
-   - Pipeline should be runnable with just the existing variables.
+   - Pipeline should be runnable with just the existing variables in the .env file.
+   - Add or replace environment variables as needed in the .env file.
 
 2. Start Airflow Services:
    ```bash
@@ -97,7 +97,7 @@ The script will:
 3. Calculate candlesticks every 5 minutes and hourly
 4. Store all data in the local SQLite database
 
-## Data Quality Considerations
+## Data Quality Checks
 
 The pipeline implements several data quality checks:
 1. Missing data detection (price, size)
@@ -105,6 +105,13 @@ The pipeline implements several data quality checks:
 3. Data freshness monitoring
 4. Trade side analysis (buy/sell distribution)
 5. Candlestick completeness checks
+
+## Approach
+
+- Currently the script is set up to run continuously in a loop, fetching data every 5 minutes and generating 5-minute and 1-hour candles.
+- The script does everything from fetching the data to generating the candles, including data quality checks and reporting.
+- This approach was chosen as a proof of concept, as it is simple to implement and provides a starting point for further improvements.
+
 
 ## Production Considerations
 
@@ -139,7 +146,8 @@ For production deployment, consider:
 
 ## Decoupling Fetching and Candlestick Generation
 
-To enhance scalability and maintainability in production deployments, the fetching process and candlestick generation/reporting have been decoupled. This separation allows for independent scaling of each component and simplifies the workflow.
+To enhance scalability and maintainability in production deployments, the fetching process and candlestick generation/reporting should be decoupled.
+This separation allows for independent scaling of each component and simplifies the workflow particularly for debugging and testing.
 
 ### Rationale
 - **Scalability**: By decoupling these processes, you can scale them independently based on the load. For example, if fetching data becomes a bottleneck, you can increase the resources allocated to that process without affecting candlestick generation.
